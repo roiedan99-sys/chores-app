@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>מטלות הבית</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #EEF3F0; --surface: #FFFFFF; --ink: #2B2E3A; --ink-soft: #6B7280; --line: #DDE5E0;
+    --ella: #7C5CBF; --ella-soft: #F1ECFA; --guy: #1F7A8C; --guy-soft: #E3F1F3; --tal: #E08E2B; --tal-soft: #FBF0DF;
+    --good: #2E8B57; --good-soft: #E4F3EA; --bad: #C05B4D; --bad-soft: #FBEAE7; --radius: 18px;
+    font-family: "Rubik", Arial, sans-serif;
+  }
+  /* הפלטה נשארת בהירה תמיד (גם אם המכשיר במצב כהה), כדי שהמראה יהיה זהה בכל המכשירים */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); -webkit-font-smoothing: antialiased; }
+  #app { max-width: 560px; margin: 0 auto; padding: 20px 16px 56px; }
+  .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 10px 4px 16px; background: var(--bg); gap: 6px; }
+  .brand { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+  .brand .mark { font-size: 22px; }
+  .brand h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-actions { display: flex; gap: 6px; }
+  .back-btn, .icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 9px 12px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .back-btn:active, .icon-btn:active { transform: scale(0.97); }
+
+  .lead { font-size: 15px; color: var(--ink-soft); margin: 0 0 20px; line-height: 1.5; }
+  .kid-grid { display: grid; gap: 12px; }
+  .kid-tile { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: var(--radius); border: none; cursor: pointer; text-align: right; font-family: inherit; width: 100%; }
+  .kid-tile:active { transform: scale(0.985); }
+  .kid-avatar { width: 52px; height: 52px; min-width: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #fff; overflow: hidden; }
+  .kid-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .task-panel { border-radius: var(--radius); padding: 12px; }
+  .kid-info { flex: 1; }
+  .kid-name { font-size: 18px; font-weight: 700; margin: 0 0 2px; }
+  .kid-meta { font-size: 13px; margin: 0; opacity: 0.75; }
+  .kid-chevron { font-size: 20px; opacity: 0.4; }
+  .tile-ella { background: var(--ella-soft); } .tile-ella .kid-avatar { background: var(--ella); } .tile-ella .kid-name { color: var(--ella); }
+  .tile-guy { background: var(--guy-soft); } .tile-guy .kid-avatar { background: var(--guy); } .tile-guy .kid-name { color: var(--guy); }
+  .tile-tal { background: var(--tal-soft); } .tile-tal .kid-avatar { background: var(--tal); } .tile-tal .kid-name { color: var(--tal); }
+  .parent-tile { background: var(--surface); border: 1px dashed var(--line); }
+  .parent-tile .kid-avatar { background: var(--line); }
+
+  .week-card { background: var(--surface); border-radius: var(--radius); padding: 18px; border: 1px solid var(--line); margin-bottom: 16px; }
+  .week-range { font-size: 13px; color: var(--ink-soft); margin: 0 0 10px; }
+  .score-row { display: flex; align-items: flex-end; gap: 8px; }
+  .score-num { font-size: 40px; font-weight: 800; line-height: 1; }
+  .score-target { font-size: 15px; color: var(--ink-soft); padding-bottom: 6px; }
+  .progress-track { height: 10px; border-radius: 999px; background: var(--line); margin-top: 12px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+  .status-pill { display: inline-block; margin-top: 12px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+  .pill-good { background: var(--good-soft); color: var(--good); }
+  .pill-pending { background: var(--bad-soft); color: var(--bad); }
+
+  .task-list { display: flex; flex-direction: column; gap: 10px; }
+  .task-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .task-info { flex: 1; min-width: 0; }
+  .task-name { font-size: 14.5px; font-weight: 500; line-height: 1.35; }
+  .task-points { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .stepper { display: flex; align-items: center; gap: 10px; background: var(--bg); border-radius: 999px; padding: 4px; }
+  .stepper button { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--surface); color: var(--ink); font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 0; }
+  .stepper button:active { transform: scale(0.9); }
+  .stepper .qty { min-width: 18px; text-align: center; font-weight: 700; font-size: 15px; }
+
+  .section-title { font-size: 14px; font-weight: 700; margin: 24px 2px 10px; color: var(--ink-soft); }
+  .history-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; font-size: 14px; }
+  .history-row .pts.good { color: var(--good); font-weight: 700; }
+  .history-row .pts.bad { color: var(--bad); font-weight: 700; }
+
+  .share-card, .import-card, .status-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-top: 18px; }
+  .share-card p, .import-card p, .status-card p { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+  .primary-btn { width: 100%; padding: 14px; border-radius: 14px; border: none; background: var(--ink); color: var(--bg); font-family: inherit; font-size: 14.5px; font-weight: 700; cursor: pointer; }
+  .primary-btn:active { transform: scale(0.99); }
+  .secondary-btn { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .code-box { display: none; margin-top: 12px; }
+  .code-box.show { display: block; }
+  .code-box textarea, textarea.field, input.field {
+    width: 100%; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    font-family: monospace; font-size: 12px; padding: 10px; resize: none;
+  }
+  input.field { font-family: inherit; font-size: 14px; }
+  .field-label { font-size: 12.5px; color: var(--ink-soft); margin: 10px 0 6px; font-weight: 600; }
+  .code-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .code-actions button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: inherit; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  .conn-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; margin-bottom: 14px; }
+  .conn-on { background: var(--good-soft); color: var(--good); }
+  .conn-off { background: var(--bad-soft); color: var(--bad); }
+
+  .summary-table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; }
+  table.summary { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  table.summary th, table.summary td { padding: 10px 12px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  table.summary th { color: var(--ink-soft); font-weight: 600; font-size: 12.5px; }
+  table.summary td:first-child, table.summary th:first-child { text-align: right; }
+  .cell-good { color: var(--good); font-weight: 700; }
+  .cell-bad { color: var(--bad); font-weight: 700; }
+  .empty-state { text-align: center; padding: 40px 16px; color: var(--ink-soft); font-size: 14px; line-height: 1.6; }
+  .export-btn { margin-top: 16px; }
+
+  .settings-task-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+  .settings-task-row .task-name { font-size: 13.5px; }
+  .settings-task-row input[type="number"] { width: 56px; text-align: center; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 14px; }
+  .mini-btn { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; justify-content: center; z-index: 30; }
+  .modal-sheet { background: var(--surface); width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .modal-sheet h2 { font-size: 16px; margin: 0 0 14px; }
+  .modal-sheet .kid-grid { margin-bottom: 6px; }
+  .modal-close { display: block; width: 100%; text-align: center; padding: 12px; margin-top: 8px; color: var(--ink-soft); font-weight: 600; font-size: 14px; background: none; border: none; font-family: inherit; cursor: pointer; }
+
+  .toast { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 40; max-width: 85%; text-align: center; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_ROLE = "chore_app_role_v2";
+  var STORAGE_CHILD_LOGS = function (id) { return "chore_logs_" + id + "_v2"; };
+  var STORAGE_PARENT_HISTORY = "chore_parent_history_v2";
+  var STORAGE_SCRIPT_URL = "chore_script_url_v1";
+  var STORAGE_SHEET_URL = "chore_sheet_url_v1";
+  var STORAGE_TASKS_CACHE = "chore_tasks_cache_v1";
+
+  // ====== ערכו כאן לפי הילדים שלכם ======
+  // id: מזהה טכני קצר (אותיות אנגלית, בלי רווחים) — חייב להיות זהה בדיוק ל-ALLOWED_CHILDREN ב-Code.gs
+  // name: השם שמוצג באפליקציה
+  // age: גם הגיל וגם יעד הנקודות השבועי
+  // cls: שם מחלקת הצבע (ella/guy/tal כבר מוגדרים ב-CSS; להוסיף מחלקה חדשה ב-<style> אם רוצים צבע רביעי)
+  var CHILDREN = [
+    { id: "child1", name: "אביב", age: 13, cls: "Aviv" },
+    { id: "child2", name: "אופיר", age: 11, cls: "Ofir" },
+    { id: "child3", name: "אביתר", age: 9,  cls: "Eviatr" },
+      { id: "child4", name: "אדר", age: 6,  cls: "Adar" }
+  ];
+
+  // תמונות אישיות (אופציונלי) — אם לא מוסיפים, יוצג המזהה הראשון של השם במקום תמונה.
+  // כדי להוסיף תמונה: המירו אותה ל-base64 (אפשר לבקש מקלוד לעשות זאת) והדביקו כאן כמו בדוגמה למטה.
+  var CHILD_PHOTOS = {
+    // child1: "data:image/jpeg;base64,....",
+    // child2: "data:image/jpeg;base64,....",
+    // child3: "data:image/jpeg;base64,...."
+  };
+  CHILDREN.forEach(function (c) { c.photo = CHILD_PHOTOS[c.id]; });
+
+  var DEFAULT_TASKS = [
+    { id: "t01", name: "הכנסת מדיח", points: 1 },
+    { id: "t02", name: "פינוי מדיח", points: 1 },
+    { id: "t03", name: "ארגון וניקוי שיש", points: 1 },
+    { id: "t04", name: "קיפול כביסה (נקודה לסל בודד)", points: 1 },
+    { id: "t05", name: "תליית מכונת כביסה", points: 2 },
+    { id: "t06", name: "הכנסת מכונת כביסה", points: 1 },
+    { id: "t07", name: "סידור סלון כולל טיאוט", points: 3 },
+    { id: "t08", name: "שטיפת חלל ציבורי", points: 2 },
+    { id: "t09", name: "הכנת ארוחה משפחתית", points: 4 },
+    { id: "t10", name: "זריקת פח כתום + פח רגיל", points: 1 },
+    { id: "t11", name: "פינוי מחזור", points: 1 },
+    { id: "t12", name: "סידור וטאטוא דק", points: 2 },
+    { id: "t13", name: "סידור וטאטוא אזור כביסה", points: 2 },
+    { id: "t14", name: "לקרוא ספר עם טל", points: 2 },
+    { id: "t15", name: "סידור ארון נעליים בכניסה", points: 2 },
+    { id: "t16", name: "סידור וטאטוא מרפסת כניסה", points: 2 },
+    { id: "t17", name: "ניקוי פילטרים של המזגנים", points: 3 }
+  ];
+
+  function childById(id) { for (var i = 0; i < CHILDREN.length; i++) if (CHILDREN[i].id === id) return CHILDREN[i]; return null; }
+
+  function startOfWeek(d) { var x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function weekKey(d) { var s = startOfWeek(d); return s.getFullYear() + "-" + pad(s.getMonth()+1) + "-" + pad(s.getDate()); }
+  function weekLabel(d) { var s = startOfWeek(d); var e = new Date(s); e.setDate(e.getDate()+6); var f = function(x){return pad(x.getDate())+"/"+pad(x.getMonth()+1);}; return f(s)+" – "+f(e); }
+  var currentWeekKey = weekKey(new Date());
+  var currentWeekLabel = weekLabel(new Date());
+
+  // ---------- storage helpers ----------
+  function safeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function safeSet(key, val) { try { localStorage.setItem(key, val); return true; } catch (e) { return false; } }
+
+  function getRole() { return safeGet(STORAGE_ROLE); }
+  function setRole(r) { safeSet(STORAGE_ROLE, r); }
+  function getScriptUrl() { return safeGet(STORAGE_SCRIPT_URL) || ""; }
+  function setScriptUrl(v) { safeSet(STORAGE_SCRIPT_URL, v || ""); }
+  function getSheetUrl() { return safeGet(STORAGE_SHEET_URL) || ""; }
+  function setSheetUrl(v) { safeSet(STORAGE_SHEET_URL, v || ""); }
+  function isConnected() { return !!getScriptUrl(); }
+
+  var TASKS = (function () {
+    var raw = safeGet(STORAGE_TASKS_CACHE);
+    if (raw) { try { var arr = JSON.parse(raw); if (Array.isArray(arr) && arr.length) return arr; } catch (e) {} }
+    return DEFAULT_TASKS.slice();
+  })();
+  function cacheTasks(list) { TASKS = list; safeSet(STORAGE_TASKS_CACHE, JSON.stringify(list)); }
+
+  function getChildLogs(childId) {
+    var raw = safeGet(STORAGE_CHILD_LOGS(childId));
+    if (!raw) return {};
+    try { return JSON.parse(raw); } catch (e) { return {}; }
+  }
+  function saveChildLogs(childId, logs) { safeSet(STORAGE_CHILD_LOGS(childId), JSON.stringify(logs)); }
+
+  function getParentHistory() {
+    var raw = safeGet(STORAGE_PARENT_HISTORY);
+    if (!raw) return {};
+    try { return JSON.parse(raw); } catch (e) { return {}; }
+  }
+  function saveParentHistory(h) { safeSet(STORAGE_PARENT_HISTORY, JSON.stringify(h)); }
+
+  // ---------- unicode-safe base64 code (manual-share fallback) ----------
+  function encodeCode(obj) {
+    var json = JSON.stringify(obj);
+    var bytes = new TextEncoder().encode(json);
+    var binary = "";
+    bytes.forEach(function (b) { binary += String.fromCharCode(b); });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function decodeCode(str) {
+    str = str.trim().replace(/-/g, "+").replace(/_/g, "/");
+    while (str.length % 4) str += "=";
+    var binary = atob(str);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  // ---------- Apps Script bridge ----------
+  async function callScript(params) {
+    var base = getScriptUrl();
+    if (!base) return { ok: false, error: "not_configured" };
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + "=" + encodeURIComponent(params[k] == null ? "" : params[k]);
+    }).join("&");
+    var url = base + (base.indexOf("?") >= 0 ? "&" : "?") + qs;
+    try {
+      var res = await fetch(url, { method: "GET" });
+      return await res.json();
+    } catch (e) {
+      return { ok: false, error: "network" };
+    }
+  }
+
+  async function fetchTasksFromScript() {
+    if (!isConnected()) return false;
+    var res = await callScript({ action: "getTasks" });
+    if (res && res.ok && Array.isArray(res.tasks) && res.tasks.length) {
+      cacheTasks(res.tasks);
+      return true;
+    }
+    return false;
+  }
+
+  // מושך מהגיליון את הדיווח העדכני ביותר של הילד/ה לשבוע הנוכחי, כדי שמכשיר
+  // אחר (שסימן שינוי בינתיים) יתעדכן גם כאן. לא דורס שינוי מקומי שעדיין
+  // ממתין להישלח (pendingDeltaCount פעיל), כדי לא "לבלוע" לחיצה שרק יצאה לדרך.
+  async function fetchReportFromScript(force) {
+    if (!isConnected() || !state.childId) return;
+    if (pendingDeltaCount > 0 && !force) return;
+    var res = await callScript({ action: "getReport", childId: state.childId, weekKey: currentWeekKey });
+    if (res && res.ok && res.found) {
+      var entries = res.entries || {};
+      var changed = JSON.stringify(entries) !== JSON.stringify(state.entries);
+      if (changed) {
+        state.entries = entries;
+        persistLocalEntries(res.totalPoints);
+        if (state.view === "child") render();
+      }
+    }
+  }
+
+  // פולינג עדין בזמן שמסך ילד/ה או מסך הורים פתוח, כדי לתפוס עדכון שנעשה
+  // במכשיר אחר בלי צורך ברענון ידני.
+  var pollTimer = null, pollingKey = null;
+  function syncPollingGuard() {
+    var key = null;
+    var fn = null;
+    if (state.view === "child" && isConnected()) {
+      key = "child:" + state.childId;
+      fn = fetchReportFromScript;
+    } else if (state.view === "parent" && isConnected()) {
+      key = "parent";
+      fn = loadParentSummary;
+    }
+    if (key) {
+      if (pollTimer && pollingKey === key) return;
+      if (pollTimer) clearInterval(pollTimer);
+      pollingKey = key;
+      pollTimer = setInterval(fn, 2000);
+    } else if (pollTimer) {
+      clearInterval(pollTimer); pollTimer = null; pollingKey = null;
+    }
+  }
+
+  // ---------- app state ----------
+  var state = { view: null, childId: null, entries: {}, showRoleModal: false, codeBoxOpen: false, lastCode: "",
+    importText: "", remoteSummary: null, settingsTasks: null, settingsLoading: false, prevView: "picker" };
+
+  function initRole() {
+    var r = getRole();
+    if (!r) { state.view = "picker"; return; }
+    if (r === "parent") { state.view = "parent"; return; }
+    state.view = "child"; state.childId = r; loadCurrentWeek(r);
+    if (isConnected()) fetchReportFromScript();
+  }
+
+  function loadCurrentWeek(childId) {
+    var logs = getChildLogs(childId);
+    state.entries = (logs[currentWeekKey] && logs[currentWeekKey].entries) || {};
+  }
+
+  function totalPoints(entries) {
+    var sum = 0;
+    for (var i = 0; i < TASKS.length; i++) sum += (Number(entries[TASKS[i].id]) || 0) * TASKS[i].points;
+    return sum;
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 2000);
+  }
+
+  function persistLocalEntries(totalPointsOverride) {
+    var logs = getChildLogs(state.childId);
+    logs[currentWeekKey] = {
+      weekKey: currentWeekKey, weekLabel: currentWeekLabel, entries: state.entries,
+      totalPoints: totalPointsOverride != null ? totalPointsOverride : totalPoints(state.entries),
+      updatedAt: Date.now()
+    };
+    saveChildLogs(state.childId, logs);
+  }
+
+  // כל לחיצה על +/- שולחת "דלתא" (הוסף/הפחת 1 למטלה הזו) ולא תמונת-מצב מלאה.
+  // השרת מבצע קריאה-שינוי-כתיבה אטומית (עם LockService) ומחזיר את המצב
+  // המהימן ביותר, וזה מה שמוצג בסוף — כך ששני מכשירים שמעדכנים כמעט
+  // בו-זמנית לא "דורסים" זה את זה (זו הייתה סיבת הבאג שדיווחתם עליו).
+  var deltaQueue = Promise.resolve();
+  var pendingDeltaCount = 0;
+  function changeQty(taskId, delta) {
+    var cur = Number(state.entries[taskId]) || 0;
+    var next = Math.max(0, cur + delta);
+    state.entries[taskId] = next; // עדכון אופטימי מיידי, לתחושת תגובתיות
+    persistLocalEntries();
+    render();
+
+    if (!isConnected()) return;
+
+    pendingDeltaCount++;
+    var childId = state.childId;
+    var weekKey = currentWeekKey;
+    deltaQueue = deltaQueue.then(function () {
+      return callScript({ action: "applyDelta", childId: childId, weekKey: weekKey, taskId: taskId, delta: delta });
+    }).then(function (res) {
+      pendingDeltaCount = Math.max(0, pendingDeltaCount - 1);
+      // אם המשתמש כבר עבר למסך אחר/ילד אחר, לא נוגעים במסך הנוכחי
+      if (state.childId !== childId) return;
+      if (res && res.ok) {
+        state.entries = res.entries || state.entries;
+        persistLocalEntries(res.totalPoints);
+        if (state.view === "child") render();
+      } else {
+        showToast("סנכרון נכשל, ננסה שוב");
+      }
+    }).catch(function () {
+      pendingDeltaCount = Math.max(0, pendingDeltaCount - 1);
+    });
+  }
+
+  function buildReportPayload() {
+    var child = childById(state.childId);
+    return { v: 1, childId: child.id, childName: child.name, age: child.age, weekKey: currentWeekKey, weekLabel: currentWeekLabel, entries: state.entries, totalPoints: totalPoints(state.entries) };
+  }
+
+  async function shareReport() {
+    var payload = buildReportPayload();
+    var code = encodeCode(payload);
+    state.lastCode = code;
+    var text = "דיווח מטלות — " + payload.childName + ", שבוע " + payload.weekLabel + ": " + payload.totalPoints + " נק'.\nקוד לייבוא: " + code;
+    if (navigator.share) {
+      try { await navigator.share({ title: "דיווח מטלות", text: text }); showToast("נשלח!"); return; }
+      catch (e) { /* fall through */ }
+    }
+    state.codeBoxOpen = true;
+    render();
+  }
+
+  function copyCode() {
+    var ta = document.getElementById("code-textarea");
+    if (!ta) return;
+    ta.select(); ta.setSelectionRange(0, 99999);
+    try { navigator.clipboard.writeText(ta.value).then(function () { showToast("הקוד הועתק"); }).catch(function () { showToast("סמנו והעתיקו ידנית"); }); }
+    catch (e) { try { document.execCommand("copy"); showToast("הקוד הועתק"); } catch (e2) { showToast("סמנו והעתיקו ידנית"); } }
+  }
+
+  function importCode() {
+    var val = (state.importText || "").trim();
+    if (!val) { showToast("הדביקו קוד קודם"); return; }
+    var payload;
+    try { payload = decodeCode(val); } catch (e) { showToast("קוד לא תקין"); return; }
+    if (!payload || !payload.childId || !payload.weekKey) { showToast("קוד לא תקין"); return; }
+    var history = getParentHistory();
+    if (!history[payload.weekKey]) history[payload.weekKey] = { weekKey: payload.weekKey, weekLabel: payload.weekLabel, points: {} };
+    history[payload.weekKey].points[payload.childId] = payload.totalPoints || 0;
+    history[payload.weekKey].weekLabel = payload.weekLabel;
+    saveParentHistory(history);
+    state.importText = "";
+    showToast("נוסף לסיכום — " + payload.childName + " (" + payload.totalPoints + " נק')");
+    render();
+  }
+
+  async function loadParentSummary() {
+    if (!isConnected()) { state.remoteSummary = null; render(); return; }
+    var res = await callScript({ action: "getSummary" });
+    var next = (res && res.ok && Array.isArray(res.weeks)) ? res.weeks : null;
+    var changed = JSON.stringify(next) !== JSON.stringify(state.remoteSummary);
+    state.remoteSummary = next;
+    if (changed) render();
+  }
+
+  function currentSummaryRows() {
+    if (state.remoteSummary) return state.remoteSummary;
+    var history = getParentHistory();
+    var rows = Object.keys(history).map(function (k) { return history[k]; });
+    rows.sort(function (a, b) { return a.weekKey < b.weekKey ? 1 : -1; });
+    return rows;
+  }
+
+  function exportExcel() {
+    var rows = currentSummaryRows().slice().sort(function (a, b) { return a.weekKey < b.weekKey ? -1 : 1; });
+    var header = ["שבוע"];
+    CHILDREN.forEach(function (c) { header.push(c.name + " (יעד " + c.age + ")"); });
+    var aoa = [header];
+    rows.forEach(function (r) {
+      var row = [r.weekLabel];
+      CHILDREN.forEach(function (c) { row.push(r.points[c.id] != null ? r.points[c.id] : 0); });
+      aoa.push(row);
+    });
+    if (rows.length === 0) aoa.push(["אין עדיין נתונים", "", "", ""]);
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "סיכום שבועי");
+    var out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    var blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "מעקב_מטלות_שבועי.xlsx";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    showToast("הקובץ הורד");
+  }
+
+  // ---------- settings (parent: edit points / add / remove tasks) ----------
+  async function fetchSettingsTasks() {
+    state.settingsLoading = true; render();
+    if (isConnected()) {
+      var res = await callScript({ action: "getTasks" });
+      state.settingsTasks = (res && res.ok && Array.isArray(res.tasks)) ? res.tasks : TASKS.slice();
+    } else {
+      state.settingsTasks = TASKS.slice();
+    }
+    state.settingsLoading = false; render();
+  }
+
+  async function saveTaskPoints(taskId, points) {
+    if (!isConnected()) { showToast("חברו קודם קישור לגיליון"); return; }
+    var pin = window.prompt("קוד גישה של ההורים:");
+    if (pin == null) return;
+    var res = await callScript({ action: "updateTaskPoints", taskId: taskId, points: points, pin: pin });
+    if (res && res.ok) { showToast("עודכן"); fetchTasksFromScript(); fetchSettingsTasks(); }
+    else showToast(res && res.error === "pin" ? "קוד שגוי" : "העדכון נכשל");
+  }
+
+  async function deleteTaskRemote(taskId) {
+    if (!isConnected()) { showToast("חברו קודם קישור לגיליון"); return; }
+    if (!window.confirm("להסיר את המשימה?")) return;
+    var pin = window.prompt("קוד גישה של ההורים:");
+    if (pin == null) return;
+    var res = await callScript({ action: "deleteTask", taskId: taskId, pin: pin });
+    if (res && res.ok) { showToast("הוסר"); fetchTasksFromScript(); fetchSettingsTasks(); }
+    else showToast(res && res.error === "pin" ? "קוד שגוי" : "המחיקה נכשלה");
+  }
+
+  async function addTaskRemote(name, points) {
+    if (!isConnected()) { showToast("חברו קודם קישור לגיליון"); return; }
+    if (!name || !name.trim()) { showToast("הזינו שם משימה"); return; }
+    var pin = window.prompt("קוד גישה של ההורים:");
+    if (pin == null) return;
+    var res = await callScript({ action: "addTask", name: name.trim(), points: points || 1, pin: pin });
+    if (res && res.ok) { showToast("המשימה נוספה"); fetchTasksFromScript(); fetchSettingsTasks(); }
+    else showToast(res && res.error === "pin" ? "קוד שגוי" : "ההוספה נכשלה");
+  }
+
+  // ---------- navigation ----------
+  function pickRole(role) {
+    setRole(role);
+    state.showRoleModal = false;
+    if (role === "parent") { state.view = "parent"; loadParentSummary(); }
+    else { state.view = "child"; state.childId = role; loadCurrentWeek(role); if (isConnected()) { fetchTasksFromScript().then(render); fetchReportFromScript(); } }
+    render();
+  }
+  function openRoleModal() { state.showRoleModal = true; render(); }
+  function closeRoleModal() { state.showRoleModal = false; render(); }
+
+  function goSettings() {
+    state.prevView = state.view;
+    state.view = "settings"; state.settingsTasks = null;
+    render();
+    fetchSettingsTasks();
+  }
+  function goBackFromSettings() {
+    state.view = state.prevView || "picker";
+    render();
+    if (state.view === "parent") loadParentSummary();
+    if (state.view === "child" && isConnected()) fetchReportFromScript();
+  }
+
+  // ---------- rendering ----------
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function connPill() {
+    return isConnected()
+      ? '<span class="conn-pill conn-on">🔗 מחובר לגיליון Google</span>'
+      : '<span class="conn-pill conn-off">⚠️ לא מחובר לגיליון — הגדרות ⚙︎</span>';
+  }
+
+  function renderPicker() {
+    var html = "";
+    html += '<div class="topbar"><div class="brand"><span class="mark">🏡</span><h1>מטלות הבית</h1></div>' +
+      '<div class="topbar-actions"><button class="icon-btn" id="settings-btn">⚙︎</button></div></div>';
+    html += connPill();
+    html += '<p class="lead">מי משתמש במכשיר הזה? הבחירה נשמרת כאן אוטומטית בפעם הבאה.</p>';
+    html += '<div class="kid-grid">';
+    CHILDREN.forEach(function (c) {
+      var avatarInner = c.photo ? '<img src="' + c.photo + '" alt="">' : c.name.charAt(0);
+      html += '<button class="kid-tile tile-' + c.cls + '" data-pick="' + c.id + '">' +
+        '<div class="kid-avatar">' + avatarInner + '</div>' +
+        '<div class="kid-info"><p class="kid-name">' + c.name + '</p><p class="kid-meta">גיל ' + c.age + ' · יעד ' + c.age + ' נק׳</p></div>' +
+        '<span class="kid-chevron">‹</span></button>';
+    });
+    html += '<button class="kid-tile parent-tile" data-pick="parent">' +
+      '<div class="kid-avatar"><img src="' + CHILD_PHOTOS.parents + '" alt=""></div>' +
+      '<div class="kid-info"><p class="kid-name" style="color:var(--ink)">מכשיר ההורים</p><p class="kid-meta">לריכוז הדיווחים ולייצוא לאקסל</p></div>' +
+      '<span class="kid-chevron">‹</span></button>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderChild() {
+    var child = childById(state.childId);
+    var pts = totalPoints(state.entries);
+    var pct = Math.min(100, Math.round((pts / child.age) * 100));
+    var reached = pts >= child.age;
+
+    var html = "";
+    var childAvatar = child.photo ? '<div class="kid-avatar" style="width:34px;height:34px;min-width:34px;margin-inline-start:8px"><img src="' + child.photo + '" alt=""></div>' : "";
+    html += '<div class="topbar"><div class="brand">' + childAvatar + '<h1 style="color:var(--' + child.cls + ')">' + child.name + '</h1></div>' +
+      '<div class="topbar-actions"><button class="icon-btn" id="refresh-child-btn" title="רענון">⟳</button><button class="icon-btn" id="settings-btn">⚙︎</button><button class="icon-btn" data-open-role="1">👤</button></div></div>';
+    html += connPill();
+
+    html += '<div class="week-card">';
+    html += '<p class="week-range">שבוע ' + currentWeekLabel + '</p>';
+    html += '<div class="score-row"><span class="score-num" style="color:var(--' + child.cls + ')">' + pts + '</span><span class="score-target">מתוך ' + child.age + ' נק׳ יעד</span></div>';
+    html += '<div class="progress-track"><div class="progress-fill" style="width:' + pct + '%;background:var(--' + child.cls + ')"></div></div>';
+    html += reached ? '<span class="status-pill pill-good">היעד השבועי הושג! 🎉</span>' : '<span class="status-pill pill-pending">עוד ' + (child.age - pts) + ' נק׳ ליעד</span>';
+    html += '</div>';
+
+    html += '<div class="task-panel" style="background:var(--' + child.cls + '-soft)"><div class="task-list">';
+    TASKS.forEach(function (t) {
+      var qty = Number(state.entries[t.id]) || 0;
+      html += '<div class="task-row"><div class="task-info"><p class="task-name">' + esc(t.name) + '</p><p class="task-points">' + t.points + ' נק׳ למטלה</p></div>' +
+        '<div class="stepper"><button data-qty="-1" data-task="' + t.id + '">−</button><span class="qty">' + qty + '</span><button data-qty="1" data-task="' + t.id + '">+</button></div></div>';
+    });
+    html += '</div></div>';
+
+    if (isConnected()) {
+      html += '<div class="status-card"><p>הדיווח מסתנכרן אוטומטית עם הגיליון של ההורים בכל שינוי.</p>' +
+        '<button class="secondary-btn" id="share-btn">שיתוף גיבוי ידני (במקרה שאין אינטרנט)</button>' +
+        '<div class="code-box' + (state.codeBoxOpen ? ' show' : '') + '"><textarea id="code-textarea" readonly>' + state.lastCode + '</textarea>' +
+        '<div class="code-actions"><button id="copy-code-btn">העתקת הקוד</button></div></div></div>';
+    } else {
+      html += '<div class="share-card"><p>כשמוכן/ה, שלחו את הדיווח השבועי להורים (בוואטסאפ או בכל דרך נוחה) כדי שיתווסף לסיכום שלהם.</p>' +
+        '<button class="primary-btn" id="share-btn">שלח דיווח שבועי להורים</button>' +
+        '<div class="code-box' + (state.codeBoxOpen ? ' show' : '') + '"><textarea id="code-textarea" readonly>' + state.lastCode + '</textarea>' +
+        '<div class="code-actions"><button id="copy-code-btn">העתקת הקוד</button></div></div></div>';
+    }
+
+    var logs = getChildLogs(state.childId);
+    var pastWeeks = Object.keys(logs).filter(function (k) { return k !== currentWeekKey; }).sort().reverse();
+    if (pastWeeks.length) {
+      html += '<p class="section-title">ההיסטוריה שלי</p>';
+      pastWeeks.slice(0, 8).forEach(function (k) {
+        var w = logs[k];
+        var ok = w.totalPoints >= child.age;
+        html += '<div class="history-row"><span>' + esc(w.weekLabel) + '</span><span class="pts ' + (ok ? "good" : "bad") + '">' + w.totalPoints + ' נק׳</span></div>';
+      });
+    }
+    return html;
+  }
+
+  function renderParent() {
+    var rows = currentSummaryRows();
+    var html = "";
+    html += '<div class="topbar"><div class="brand"><h1>סיכום להורים</h1></div>' +
+      '<div class="topbar-actions"><button class="icon-btn" id="settings-btn">⚙︎</button><button class="icon-btn" data-open-role="1">👤</button></div></div>';
+    html += connPill();
+
+    if (isConnected()) {
+      html += '<button class="secondary-btn" id="refresh-btn" style="margin-bottom:14px">רענון נתונים מהגיליון</button>';
+      var sheetUrl = getSheetUrl();
+      if (sheetUrl) html += '<a href="' + esc(sheetUrl) + '" target="_blank" rel="noopener" class="secondary-btn" style="display:block;text-align:center;text-decoration:none;margin-bottom:14px">פתיחת הגיליון ב-Google Sheets ↗</a>';
+    } else {
+      html += '<div class="import-card"><p>קיבלתם קוד דיווח מהילדים? הדביקו אותו כאן:</p>' +
+        '<textarea id="import-textarea" placeholder="הדביקו כאן את הקוד...">' + esc(state.importText) + '</textarea>' +
+        '<button class="primary-btn" id="import-btn">הוספה לסיכום</button></div>';
+    }
+
+    if (state.remoteSummary === null && isConnected()) {
+      html += '<div class="summary-table-wrap"><div class="empty-state">טוען נתונים מהגיליון…</div></div>';
+    } else if (rows.length === 0) {
+      html += '<div class="summary-table-wrap"><div class="empty-state">עדיין אין דיווחים.<br>ברגע שהילדים יסמנו מטלות, הסיכום יופיע כאן.</div></div>';
+    } else {
+      html += '<div class="summary-table-wrap"><table class="summary"><thead><tr><th>שבוע</th>';
+      CHILDREN.forEach(function (c) { html += '<th>' + c.name + '</th>'; });
+      html += '</tr></thead><tbody>';
+      rows.forEach(function (r) {
+        html += '<tr><td>' + esc(r.weekLabel) + '</td>';
+        CHILDREN.forEach(function (c) {
+          var p = r.points[c.id] != null ? r.points[c.id] : 0;
+          var cls = p >= c.age ? "cell-good" : "cell-bad";
+          html += '<td class="' + cls + '">' + p + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '<button class="primary-btn export-btn" id="export-btn">ייצוא לאקסל</button>';
+    return html;
+  }
+
+  function renderSettings() {
+    var scriptUrl = getScriptUrl();
+    var sheetUrl = getSheetUrl();
+    var html = '<div class="topbar"><button class="back-btn" data-go-back="1">חזרה ›</button><div class="brand"><h1>הגדרות</h1></div><span style="width:44px"></span></div>';
+
+    html += '<div class="import-card"><p>קישור לסקריפט Google (Web App URL) — מחבר את האפליקציה לגיליון החי:</p>' +
+      '<textarea id="script-url-input" class="field" placeholder="https://script.google.com/macros/s/...">' + esc(scriptUrl) + '</textarea>' +
+      '<button class="primary-btn" id="save-script-url" style="margin-top:10px">שמירת קישור</button></div>';
+
+    html += '<div class="import-card"><p>קישור לצפייה בגיליון עצמו (אופציונלי, לפתיחה מהיר):</p>' +
+      '<textarea id="sheet-url-input" class="field" placeholder="https://docs.google.com/spreadsheets/...">' + esc(sheetUrl) + '</textarea>' +
+      '<button class="primary-btn" id="save-sheet-url" style="margin-top:10px">שמירת קישור</button></div>';
+
+    html += '<p class="section-title">ניקוד למטלות (עריכת הורים)</p>';
+    if (state.settingsLoading || state.settingsTasks === null) {
+      html += '<div class="summary-table-wrap"><div class="empty-state">טוען משימות…</div></div>';
+    } else {
+      state.settingsTasks.forEach(function (t) {
+        html += '<div class="settings-task-row"><div class="task-name" style="flex:1">' + esc(t.name) + '</div>' +
+          '<input type="number" min="0" value="' + t.points + '" data-points-input="' + t.id + '">' +
+          '<button class="mini-btn" data-save-points="' + t.id + '">שמירה</button>' +
+          '<button class="mini-btn" data-delete-task="' + t.id + '">הסרה</button></div>';
+      });
+      if (!isConnected()) html += '<p style="font-size:12.5px;color:var(--ink-soft)">חברו קישור לגיליון כדי לערוך ולשמור שינויים.</p>';
+    }
+
+    html += '<p class="section-title">הוספת משימה חדשה</p>';
+    html += '<div class="import-card">' +
+      '<input id="new-task-name" class="field" placeholder="שם המשימה" style="margin-bottom:8px">' +
+      '<input id="new-task-points" type="number" min="0" value="1" class="field" placeholder="ניקוד" style="margin-bottom:10px">' +
+      '<button class="primary-btn" id="add-task-btn">הוספת משימה</button></div>';
+
+    return html;
+  }
+
+  function renderRoleModal() {
+    var html = '<div class="modal-backdrop" id="modal-backdrop"><div class="modal-sheet"><h2>החלפת משתמש למכשיר זה</h2><div class="kid-grid">';
+    CHILDREN.forEach(function (c) {
+      var avatarInner = c.photo ? '<img src="' + c.photo + '" alt="">' : c.name.charAt(0);
+      html += '<button class="kid-tile tile-' + c.cls + '" data-pick="' + c.id + '">' +
+        '<div class="kid-avatar">' + avatarInner + '</div>' +
+        '<div class="kid-info"><p class="kid-name">' + c.name + '</p><p class="kid-meta">גיל ' + c.age + '</p></div></button>';
+    });
+    html += '<button class="kid-tile parent-tile" data-pick="parent">' +
+      '<div class="kid-avatar"><img src="' + CHILD_PHOTOS.parents + '" alt=""></div><div class="kid-info"><p class="kid-name" style="color:var(--ink)">מכשיר ההורים</p></div></button>';
+    html += '</div><button class="modal-close" id="modal-close">ביטול</button></div></div>';
+    return html;
+  }
+
+  function render() {
+    var app = document.getElementById("app");
+    var html = "";
+    if (state.view === "picker") html = renderPicker();
+    else if (state.view === "child") html = renderChild();
+    else if (state.view === "parent") html = renderParent();
+    else if (state.view === "settings") html = renderSettings();
+    if (state.showRoleModal) html += renderRoleModal();
+    app.innerHTML = html;
+    wireEvents();
+    syncPollingGuard();
+  }
+
+  function wireEvents() {
+    var app = document.getElementById("app");
+    app.querySelectorAll("[data-pick]").forEach(function (el) {
+      el.addEventListener("click", function () { pickRole(el.getAttribute("data-pick")); });
+    });
+    var openRole = app.querySelector("[data-open-role]");
+    if (openRole) openRole.addEventListener("click", openRoleModal);
+    var modalClose = app.querySelector("#modal-close");
+    if (modalClose) modalClose.addEventListener("click", closeRoleModal);
+    var backdrop = app.querySelector("#modal-backdrop");
+    if (backdrop) backdrop.addEventListener("click", function (e) { if (e.target === backdrop) closeRoleModal(); });
+
+    var settingsBtn = app.querySelector("#settings-btn");
+    if (settingsBtn) settingsBtn.addEventListener("click", goSettings);
+    var backBtn = app.querySelector("[data-go-back]");
+    if (backBtn) backBtn.addEventListener("click", goBackFromSettings);
+
+    app.querySelectorAll("[data-qty]").forEach(function (el) {
+      el.addEventListener("click", function () { changeQty(el.getAttribute("data-task"), parseInt(el.getAttribute("data-qty"), 10)); });
+    });
+    var shareBtn = app.querySelector("#share-btn");
+    if (shareBtn) shareBtn.addEventListener("click", shareReport);
+    var copyBtn = app.querySelector("#copy-code-btn");
+    if (copyBtn) copyBtn.addEventListener("click", copyCode);
+
+    var importTa = app.querySelector("#import-textarea");
+    if (importTa) importTa.addEventListener("input", function () { state.importText = importTa.value; });
+    var importBtn = app.querySelector("#import-btn");
+    if (importBtn) importBtn.addEventListener("click", importCode);
+    var exportBtn = app.querySelector("#export-btn");
+    if (exportBtn) exportBtn.addEventListener("click", exportExcel);
+    var refreshBtn = app.querySelector("#refresh-btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", function () {
+      showToast("מרענן…");
+      loadParentSummary();
+    });
+    var refreshChildBtn = app.querySelector("#refresh-child-btn");
+    if (refreshChildBtn) refreshChildBtn.addEventListener("click", function () {
+      if (!isConnected()) { showToast("לא מחובר לגיליון"); return; }
+      fetchReportFromScript(true);
+      showToast("מרענן…");
+    });
+
+    var saveScriptBtn = app.querySelector("#save-script-url");
+    if (saveScriptBtn) saveScriptBtn.addEventListener("click", function () {
+      var val = app.querySelector("#script-url-input").value.trim();
+      setScriptUrl(val);
+      showToast(val ? "הקישור נשמר" : "הקישור נמחק");
+      render();
+      if (val) fetchTasksFromScript().then(render);
+    });
+    var saveSheetBtn = app.querySelector("#save-sheet-url");
+    if (saveSheetBtn) saveSheetBtn.addEventListener("click", function () {
+      var val = app.querySelector("#sheet-url-input").value.trim();
+      setSheetUrl(val);
+      showToast("נשמר");
+      render();
+    });
+
+    app.querySelectorAll("[data-save-points]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var id = el.getAttribute("data-save-points");
+        var input = app.querySelector('[data-points-input="' + id + '"]');
+        saveTaskPoints(id, input ? input.value : 0);
+      });
+    });
+    app.querySelectorAll("[data-delete-task]").forEach(function (el) {
+      el.addEventListener("click", function () { deleteTaskRemote(el.getAttribute("data-delete-task")); });
+    });
+    var addTaskBtn = app.querySelector("#add-task-btn");
+    if (addTaskBtn) addTaskBtn.addEventListener("click", function () {
+      var name = app.querySelector("#new-task-name").value;
+      var points = app.querySelector("#new-task-points").value;
+      addTaskRemote(name, points);
+    });
+  }
+
+  // ---------- boot ----------
+  initRole();
+  render();
+  if (isConnected()) {
+    fetchTasksFromScript().then(function (changed) { if (changed) render(); });
+    if (state.view === "parent") loadParentSummary();
+  }
+})();
+</script>
+</body>
+</html>
